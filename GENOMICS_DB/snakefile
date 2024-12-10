@@ -13,7 +13,7 @@ rule all:
 ### ... Genomics DB
 rule genomics_db_import:
     input:
-        sample_map = './GENOMICS_DB/PANCANCER_mapping.tsv'
+        sample_map = './resources/PANCANCER_mapping.tsv'
     output:
         db=directory(f'./output/Databases/database_{{CHR}}'),
     log:
