@@ -4,17 +4,17 @@ This github repository has the code used to download, call and annotate variants
 
 - Download_Calling: snakemake script and config file used to download data from GDC and call variants using GATK's HaplotypeCaller.
 
-- Envs: list of conda environments used in the snakemake scripts.
-
 - GENOMICS_DB: code to create the genomics databases using GenomicsDBImport tool.
 
 - Joint_Genotyping: code to perform joint genotyping (merging all samples information into a single vcf file).
 
-- Resources: folder with some resources used in this process (TCGA's sample manifest, a sample mapping file and a list of gencode's transcripts).
+- VEP_annotation: code to annotate called variants using Ensembl's VEP.
 
 - Variant_Recallibration: code to apply Variant Recalibration on called snps and indels.
 
-- VEP_annotation: code to annotate called variants using Ensembl's VEP.
+- Envs: list of conda environments used in the snakemake scripts.
+
+- Resources: folder with some resources used in this process (TCGA's sample manifest, a sample mapping file and a list of gencode's transcripts).
 
 Some additional resources not provided in this repository were downloaded:
 
