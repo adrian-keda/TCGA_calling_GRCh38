@@ -1,0 +1,58 @@
+configfile: './JOINT_GENOTYPES/config.yaml'
+
+
+
+chrlist = config['chromosomes']
+
+
+
+### ... ONE TU RULE THEM ALL
+rule all:
+    input:
+        expand(f"./output/GenotypeGVCFs/{{CHR}}.vcf.gz", CHR = chrlist)
+
+
+rule Select_Variants:
+    input:
+        database = f'./output/Databases/database_{{CHR}}',
+        reference = './resources/GRCh38.d1.vd1.fa'
+    output:
+        vcf = f'./output/SelectVariants/{{CHR}}.g.vcf.gz'
+    log:
+        f"./Joint_Genotyping/logs/SelectVariants/{{CHR}}.log"
+    params:
+        intervals=f"{{CHR}}"
+    resources:
+        mem_mb = 65536,
+        runtime = 10080,
+        slurm_partition = 'long'
+    threads: 8
+    conda:
+        './envs/variant_calling.yml'
+    script:
+        './Joint_Genotyping/select_variants.py'
+
+
+rule genotype_gvcfs:
+    input:
+        gvcf = f'./output/SelectVariants/{{CHR}}.g.vcf.gz',  # combined gvcf over multiple samples
+        ref="./resources/GRCh38.d1.vd1.fa"
+    output:
+        vcf = f"./output/GenotypeGVCFs/{{CHR}}.vcf.gz",
+    log:
+        f"./Joint_Genotyping/logs/GenotypeGVCF/{{CHR}}.log"
+    params:
+        intervals = f"{{CHR}}",
+        extra = "",  # optional
+    threads: 8
+    resources:
+        runtime = 10080,
+        mem_mb = 65536,
+        slurm_partition = 'long'
+    conda:
+        './envs/variant_calling.yml'
+    script:
+        "./Joint_Genotyping/genotypeGVCFs.py"
+
+# snakemake --use-conda --profile $SMK_PROFILE_SLURM -j 20 -n
+# snakemake --executor slurm -j 20 --keep-going --use-conda -n
