@@ -1,0 +1,75 @@
+
+#### GLOBAL PARAMETERS ####
+
+configfile: "config.yaml"
+CHR_LIST = config['chr_list']
+
+#### RULES ####
+
+rule all:
+	input:
+		annotated_vcf = expand(f"output/VEP/{{CHR}}.vep_annotated.tsv", CHR=CHR_LIST)
+		
+rule s1_nsp_annotate_splits_vep:
+	input:
+		original_vcf = f"/some_path/{{CHR}}.vcf.gz"
+	output:
+		annotated_vcf = f"output/VEP/{{CHR}}.vep_annotated.tsv" 
+	conda: 
+		"./envs/VEP.yml"
+	log:
+		f".(logs/{{CHR}}/s1_nsp_annotate_splits_vep{{CHR}}.log"
+	resources:
+		mem_mb=131072,
+		walltime=1440
+	threads: 8
+	shell:
+		"""
+		vep -i {input.original_vcf} \
+        -o {output.annotated_vcf} \
+        --no_stats \
+		--fork {threads} \
+		--cache \
+        --cache_version 113 \
+        --assembly GRCh38 \
+        --species homo_sapiens \
+        --everything \
+		--format vcf \
+        --tab \
+        --compress_output gzip \
+        --force_overwrite \
+        --dir_cache ./VEP/cache \
+		--offline \
+        --fasta ./resources/Homo_sapiens_assembly38.fasta \
+		--buffer_size 70000 \
+		--phased \
+		--sift b \
+		--polyphen b \
+		--biotype \
+		--numbers \
+		--hgvs \
+		--symbol \
+		--canonical \
+		--af \
+		--af_1kg \
+		--af_gnomade \
+		--gencode_basic \
+		--transcript_filter 'stable_id' \
+		--dir_plugins .VEP/plugins \
+		--plugin AlphaMissense,file=./VEP/resources/AlphaMissense_hg38.tsv.gz,transcript_match=1 \
+		--plugin SpliceAI,snv=./VEP/spliceai_scores.masked.snv.hg38.vcf.gz,indel=./VEP/resources/spliceai_scores.masked.indel.hg38.vcf.gz \
+		--plugin REVEL,file=./VEP/resources/new_tabbed_revel_grch38.tsv.gz \
+		--custom file=./VEP/resources/clinvar.vcf.gz,short_name=ClinVar,format=vcf,type=exact,coords=0,fields=CLNSIG%CLNREVSTAT%CLNDN \
+		--plugin dbNSFP,./VEP/resources/dbNSFP4.9a_grch38.gz,ALL
+		"""
+# To run this you can use:
+#snakemake --use-conda --profile $SMK_PROFILE_SLURM -j 20 -n
+
+## Add this on line 63
+#		--fields 'Uploaded_variation,Location,Allele,Gene,SYMBOL,Feature,Feature_type,Consequence,cDNA_position,Protein_position,Amino_acids,Codons,IMPACT,DISTANCE,EXON,FLAGS,BIOTYPE,CANONICAL,LoFtool' \
+
+
+## When a job is not completed due to an error:
+#snakemake --use-conda --profile $SMK_PROFILE_SLURM -j 20 --unlock 
+## then 
+#snakemake --use-conda --profile $SMK_PROFILE_SLURM -j 200 --rerun-incomplete
