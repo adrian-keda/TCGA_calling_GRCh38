@@ -1,6 +1,6 @@
 # TCGA_calling_GRCh38
 
-This github repository has the code used to download, call and annotate variants from TCGA WES data following GATK's best practices. Brief description of the content included in each folder:
+This github repository has the code used to download, call and process TCGA WES germline data following GATK's best practices. Description of each folder:
 
 - Download_Calling: snakemake script and config file used to download data from GDC and call variants using GATK's HaplotypeCaller.
 
