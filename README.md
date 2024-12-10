@@ -1,4 +1,4 @@
-# TCGA_calling_GRCh38
+# TCGA_germline
 
 This github repository has the code used to download, call and process TCGA WES germline data following GATK's best practices. Description of each folder:
 
