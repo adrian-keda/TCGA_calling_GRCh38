@@ -1,0 +1,38 @@
+import pandas as pd
+
+configfile: './GENOMICS_DB/config.yaml'
+chrlist = config['chromosomes']
+
+
+### ... ONE TO RULE THEM ALL
+rule all:
+    input:
+        expand(f'./output/Databases/database_{{CHR}}', CHR = chrlist)
+
+
+### ... Genomics DB
+rule genomics_db_import:
+    input:
+        sample_map = './GENOMICS_DB/PANCANCER_mapping.tsv'
+    output:
+        db=directory(f'./output/Databases/database_{{CHR}}'),
+    log:
+        f"./GENOMICS_DB/logs/{{CHR}}.log",
+    params:
+        intervals= f'{{CHR}}',
+        db_action="create",  # create or update
+        extra="--bypass-feature-reader --batch-size 50 --validate-sample-name-map true",  # optional
+        java_opts="",  # optional
+    threads: 8
+    conda:
+        './envs/variant_calling.yml'
+    resources:
+        runtime = 10080,
+        mem_mb = 65536,
+        slurm_partition = 'long'
+    script:
+        "./GENOMICS_DB/database.py"
+
+
+# snakemake --use-conda --profile $SMK_PROFILE_SLURM -j 20 -n
+# snakemake --executor slurm -j 20 --keep-going --use-conda -n
