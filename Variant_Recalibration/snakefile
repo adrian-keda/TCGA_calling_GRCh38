@@ -1,0 +1,143 @@
+configfile: './Variant_Recalibration/config.yaml'
+
+
+
+chrlist = config['chromosomes']
+reference = config['reference']
+
+
+### ... ONE TU RULE THEM ALL
+rule all:
+    input:
+        expand(f"./output/indel_recal/{{CHR}}.split.snp_recal.indel_recal.vcf.gz", CHR = chrlist),
+
+
+
+rule SplitMulti:
+    input:
+        f'./output/GenotypeGVCFs/{{CHR}}.vcf'
+    output:
+        temp(f'./output/vcf_splitted/{{CHR}}.split.vcf')
+    resources:
+        walltime = 60,
+        mem_mb = 32768
+    conda:
+        './envs/samtools.yml'
+    shell:
+        f'bcftools norm -m-any --check-ref -w -f {{reference}} {{input}} -o {{output}}'
+
+
+
+rule SNP_Recalibrator:
+    input:
+        vcf=f"output/vcf_splitted/{{CHR}}.split.vcf",
+        ref=reference,
+        HapMap="./resources/hapmap_3.3.hg38.vcf.gz",
+        omni="./resources/1000G_omni2.5.hg38.vcf.gz",
+        g1k="./resources/dido/hg38_v0_1000G_phase3_v4_20130502.sites.hg38.vcf.gz",
+        dbsnp="./resources/Homo_sapiens_assembly38.dbsnp138.vcf"
+    output:
+        vcf=temp(f"./output/snps/{{CHR}}.recal.vcf"),
+        idx=temp(f"./output/snps/{{CHR}}.recal.vcf.idx"),
+        tranches=temp(f"./output/snps/{{CHR}}.tranches"),
+    log:
+        f"./Variant_Recalibration/logs/snp_recal/variantrecalibrator_{{CHR}}.log",
+    params:
+        mode="SNP",  # set mode, must be either SNP, INDEL or BOTH
+        resources={
+            "HapMap": {"known": False, "training": True, "truth": True, "prior": 15.0},
+            "omni": {"known": False, "training": True, "truth": False, "prior": 12.0},
+            "g1k": {"known": False, "training": True, "truth": False, "prior": 10.0},
+            "dbsnp": {"known": True, "training": False, "truth": False, "prior": 2.0},
+        },
+        annotation=["MQ", "QD", "MQRankSum", "ReadPosRankSum", "FS", "SOR"],
+        extra="--max-gaussians 8",  # Optional, using default
+    threads: 1
+    resources:
+        mem_mb=32768,
+        walltime = 120
+    conda:
+        './envs/variant_calling.yml'
+    script:
+        "./Variant_Recalibration/VariantRecalibrator.py"
+
+
+
+rule SNP_VQSR:
+    input:
+        vcf=f"./output/vcf_splitted/{{CHR}}.split.vcf",
+        recal=f"./output/snps/{{CHR}}.recal.vcf",
+        recal_idx=f"./output/snps/{{CHR}}.recal.vcf.idx",
+        tranches=f"./output/snps/{{CHR}}.tranches",
+        ref=reference
+    output:
+        vcf=temp(f"./output/snp_recal/{{CHR}}.snp_recal.vcf"),
+        idx=temp(f"./output/snp_recal/{{CHR}}.snp_recal.vcf.idx")
+    log:
+        f"./Variant_Recalibration/logs/snp_recal/applyvqsr_{{CHR}}.log",
+    params:
+        mode="SNP",  # set mode, must be either SNP, INDEL or BOTH
+        extra="",  # optional
+    resources:
+        mem_mb=32768,
+        walltime = 120
+    wrapper:
+        "v4.7.2/bio/gatk/applyvqsr"
+
+
+
+rule INDEL_Recalibrator:
+    input:
+        vcf=f"./output/snp_recal/{{CHR}}.snp_recal.vcf",
+        ref = reference,
+        mills="./resources/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz",
+        axiom="./resources/Axiom_Exome_Plus.genotypes.all_populations.poly.hg38.vcf.gz",
+        dbsnp="./resources/Homo_sapiens_assembly38.dbsnp138.vcf"
+    output:
+        vcf=temp(f"./output/indels/{{CHR}}.recal.vcf"),
+        idx=temp(f"./output/indels/{{CHR}}.recal.vcf.idx"),
+        tranches=temp(f"./output/indels/{{CHR}}.tranches")
+    log:
+        f"./Variant_Recalibration/logs/indel_recal/variantrecalibrator_{{CHR}}.log",
+    params:
+        mode="INDEL",  # set mode, must be either SNP, INDEL or BOTH
+        resources={
+            "mills": {"known": False, "training": True, "truth": True, "prior": 15.0},
+            "axiom": {"known": False, "training": True, "truth": False, "prior": 10.0},
+            "dbsnp": {"known": True, "training": False, "truth": False, "prior": 2.0},
+        },
+        annotation=["QD", "MQRankSum", "ReadPosRankSum", "FS", "SOR"], # In case of WES, remove DP
+        extra="--max-gaussians 8",  # Optional, using default
+    threads: 1
+    resources:
+        mem_mb=32768,
+        walltime = 120
+    conda:
+        './envs/variant_calling.yml'
+    script:
+        "./Variant_Recalibration/VariantRecalibrator.py"
+
+
+
+rule INDEL_VQSR:
+    input:
+        vcf=f"./output/snp_recal/{{CHR}}.snp_recal.vcf",
+        idx=f"./output/snp_recal/{{CHR}}.snp_recal.vcf.idx",
+        recal=f"./output/indels/{{CHR}}.recal.vcf",
+        recal_idx=f"./output/indels/{{CHR}}.recal.vcf.idx",
+        tranches=f"./output/indels/{{CHR}}.tranches",
+        ref=reference
+    output:
+        vcf=f"./output/indel_recal/{{CHR}}.split.snp_recal.indel_recal.vcf.gz",
+    log:
+        f"./Variant_Recalibration/logs/indel_recal/applyvqsr_{{CHR}}.log",
+    params:
+        mode="INDEL",  # set mode, must be either SNP, INDEL or BOTH
+        extra="",  # optional
+    resources:
+        mem_mb=32768,
+        walltime=120
+    wrapper:
+        "v4.7.2/bio/gatk/applyvqsr"
+
+# snakemake --use-conda --profile $SMK_PROFILE_SLURM -j 20 --keep-going -n
