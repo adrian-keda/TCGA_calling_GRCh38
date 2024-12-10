@@ -1,0 +1,3 @@
+MANIFEST: './resources/MANIFEST_TCGA_PanCan_noOV.tsv'
+
+TOKEN: './token.txt'

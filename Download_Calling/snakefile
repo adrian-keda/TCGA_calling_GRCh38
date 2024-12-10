@@ -1,0 +1,74 @@
+import pandas as pd
+import numpy as np
+configfile: './config.yaml'
+
+
+manifest = pd.read_table(config['MANIFEST'], header = 0)
+# To run all 11426 samples, intervals can be changed.
+IDS = manifest['File.ID'][0:]
+BAMS = manifest['File.Name'][0:]
+
+
+# Removing '.bam' from each file name
+def change_extension(files):
+    modded_files = []
+    for file in files:
+        # Change .bam a .bai
+        modded_file = file[:-4]
+        modded_files.append(modded_file)
+    return modded_files
+NAMES = change_extension(BAMS)
+
+
+
+## ONE TO RULE THEM ALL
+rule all:
+    input:
+        ["./output/calling/{}/{}.bam.g.vcf.gz".format(ID, NAME) for (ID, NAME) in zip(IDS, NAMES)]
+
+
+## Download BAM + BAI
+rule s1_download:
+    output:
+        bam = temp(f"./output/download/{{ID}}/{{NAME}}.bam"),
+        bai = temp(f"./output/download/{{ID}}/{{NAME}}.bai")
+    resources:
+        load = 3,
+        mem_mb = 16384,
+        walltime = 240
+    conda:
+        './envs/gdc_download.yml'
+    params:
+        SAMPLE = f'{{ID}}',
+        TOKEN = config['TOKEN'],
+        outdir = './output/download/'
+    retries: 5
+    shell:
+        'gdc-client download --log-file ./gdc_logs/{params.SAMPLE}.log -d {params.outdir} {params.SAMPLE} --latest -t {params.TOKEN} -n 20'
+
+
+
+# Variant calling in single-sample mode
+rule s2_calling:
+    input:
+        bam = f"./output/download/{{ID}}/{{NAME}}.bam",
+        bai = f"./output/download/{{ID}}/{{NAME}}.bai",
+        reference = './resources/GRCh38.d1.vd1.fa',
+        intervals = './resources/gencode_v46_canonical_red.bed'
+    output:
+        vcf = f"./output/calling/{{ID}}/{{NAME}}.bam.g.vcf.gz"
+    resources:
+        mem_mb = 65536,
+        walltime = 480
+    threads: 8
+    priority: 10
+    conda:
+        './envs/variant_calling.yml'
+    retries: 5
+    shell:
+        "gatk --java-options '-Xmx60G' HaplotypeCaller --input {input.bam} --output {output.vcf} --reference {input.reference} --intervals {input.intervals} --max-reads-per-alignment-start 0 --native-pair-hmm-threads {threads} -ERC GVCF"
+
+
+# To run pipeline (from a screen):
+# snakemake --resources load=3 --use-conda --profile $SMK_PROFILE_SLURM -j 20 --keep-going -n
+# snakemake --executor slurm -j 20 --keep-going --resource load=3 --use-conda -n

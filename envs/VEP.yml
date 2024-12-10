@@ -1,0 +1,11 @@
+name: VEP
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - ensembl-vep
+  - tabix
+  - ca-certificates
+  - certifi
+  - openssl
